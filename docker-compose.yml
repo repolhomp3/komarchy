@@ -1,0 +1,26 @@
+services:
+  domarchy:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: overthinkinglabs/domarchy:latest
+    container_name: domarchy
+    volumes:
+      - ./data:/data
+      - /run/user/1000/pulse/native:/tmp/pulse.socket
+    ports:
+      - "5900:5900"
+      - "2222:2222"
+    environment:
+      - DISPLAY=:0
+      - MEMORY=8G
+      - CPUS=4
+      - PULSE_SERVER=unix:/tmp/pulse.socket
+    deploy:
+      resources:
+        limits:
+          memory: 8G
+        reservations:
+          memory: 8G
+    restart: no
+    privileged: true
