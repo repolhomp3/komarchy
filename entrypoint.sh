@@ -28,6 +28,7 @@ exec qemu-system-x86_64 \
     $CDROM_OPTION \
     -boot order=$BOOT_ORDER \
     -display vnc=:0 \
+    -device VGA,edid=on,xres=1760,yres=990,vgamem_mb=32 \
     -audiodev pa,id=audio0,server=unix:/tmp/pulse.socket \
     -device ich9-intel-hda \
     -device hda-output,audiodev=audio0 \

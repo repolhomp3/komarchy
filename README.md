@@ -1,3 +1,7 @@
+<p align="center">
+    <img src="screenshot.png" alt="omarchy"/>
+</p>
+
 # domarchy (Dockerized Omarchy)
 
 Beautiful, Modern & Opinionated Dockerized Linux. This repo exists primarily as a personal sandbox for testing and developing Omarchy configuration scripts in a fully isolated environment. It also aims to make Omarchy accessible to anyone who wants to try it without committing to a full installation or dual boot setup.
@@ -11,7 +15,7 @@ docker compose up -d --build
 Connect to the VM display:
 
 ```bash
-vncviewer localhost:5900
+vncviewer -fullscreen localhost:5900
 ```
 
 **N.B.** On the first run you will be greeted by the Omarchy installer. Complete the installation manually before using the system. Subsequent starts will boot directly into Omarchy.
