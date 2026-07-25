@@ -7,7 +7,7 @@ CPUS=${CPUS:-4}
 
 if [[ ! -f "$ISO" ]]; then
     echo "Downloading Omarchy ISO..."
-    wget -O "$ISO" "https://iso.omarchy.org/omarchy-3.5.1-2.iso" || echo "Download failed"
+    wget -O "$ISO" "https://iso.omarchy.org/omarchy-3.8.4.iso" || echo "Download failed"
 fi
 
 # Check if this is first boot (disk doesn't exist)
