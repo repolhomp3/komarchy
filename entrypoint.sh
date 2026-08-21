@@ -7,7 +7,7 @@ CPUS=${CPUS:-4}
 
 if [[ ! -f "$ISO" ]]; then
     echo "Downloading Omarchy ISO..."
-    wget -O "$ISO" "https://iso.omarchy.org/omarchy-3.8.4.iso" || echo "Download failed"
+    wget -O "$ISO" "https://iso.omarchy.org/omarchy-4.0.0.iso" || echo "Download failed"
 fi
 
 # Check if this is first boot (disk doesn't exist)
@@ -21,6 +21,8 @@ else
     CDROM_OPTION=""
     BOOT_ORDER="d"
 fi
+
+websockify --web /opt/novnc 8900 localhost:5900 &
 
 exec qemu-system-x86_64 \
     -m $MEMORY -smp $CPUS -machine q35,accel=kvm:tcg \

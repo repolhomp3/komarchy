@@ -12,11 +12,7 @@ Beautiful, Modern & Opinionated Dockerized Linux. This repo exists primarily as 
 docker compose up -d --build
 ```
 
-Connect to the VM display:
-
-```bash
-vncviewer -fullscreen localhost:5900
-```
+Connect to the VM display: [http://localhost:8900](http://localhost:8900)
 
 **N.B.** On the first run you will be greeted by the Omarchy installer. Complete the installation manually before using the system. Subsequent starts will boot directly into Omarchy.
 

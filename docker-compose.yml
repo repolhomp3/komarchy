@@ -11,6 +11,7 @@ services:
       - /run/user/1000/pulse/native:/tmp/pulse.socket
     ports:
       - "5900:5900"
+      - "8900:8900"
     environment:
       - DISPLAY=:0
       - MEMORY=8G
