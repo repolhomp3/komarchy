@@ -1,0 +1,103 @@
+image:
+  repository: overthinkinglabs/domarchy
+  # The upstream image is only published as :latest — appVersion tracks the
+  # Omarchy release inside it, not a tag you can pull.
+  tag: "latest"
+  pullPolicy: IfNotPresent
+
+imagePullSecrets: []
+nameOverride: ""
+fullnameOverride: ""
+
+vm:
+  # Guest RAM. Keep resources.limits.memory comfortably above this — QEMU needs
+  # headroom beyond the guest allocation or the kubelet OOMKills the pod.
+  memory: 8G
+  cpus: 4
+  # Size of the qcow2 created on first boot. The ISO (~5.8G) shares the same
+  # volume, so keep diskSize + 7G at or under persistence.size.
+  diskSize: 40G
+
+persistence:
+  enabled: true
+  # Holds omarchy.iso (~5.8G) and omarchy.qcow2 (grows toward vm.diskSize).
+  size: 50Gi
+  accessModes:
+    - ReadWriteOnce
+  storageClass: ""       # "" uses the cluster default
+  existingClaim: ""      # reuse an existing claim instead of creating one
+  annotations: {}
+
+# Guest-visible Samba share (QEMU -net user,smb=/shared).
+shared:
+  type: emptyDir         # emptyDir | pvc | none
+  existingClaim: ""
+  size: 5Gi
+  storageClass: ""
+
+# Host PulseAudio passthrough. Off by default: cluster nodes have no per-user
+# pulse socket, and hostPath-mounting one pins the pod to a single node.
+# When disabled the image runs QEMU with "-audiodev none".
+audio:
+  enabled: false
+  socketPath: /run/user/1000/pulse/native
+  cookiePath: ""         # host path to ~/.config/pulse/cookie; required by PulseAudio auth
+
+# KVM acceleration. Without /dev/kvm QEMU falls back to TCG software emulation,
+# which is far too slow for an interactive desktop.
+kvm:
+  # privileged: true grants /dev/kvm the way docker-compose does.
+  privileged: true
+  # Used when privileged is false — pair with a KVM device plugin,
+  # e.g. {devices.kubevirt.io/kvm: "1"}
+  deviceResource: {}
+
+service:
+  type: ClusterIP
+  annotations: {}
+  vnc:
+    port: 5900
+    nodePort: ""
+  novnc:
+    port: 8900
+    nodePort: ""
+
+ingress:
+  enabled: false
+  className: ""
+  # noVNC needs WebSocket upgrade and long read timeouts. For ingress-nginx:
+  #   nginx.ingress.kubernetes.io/proxy-read-timeout: "3600"
+  #   nginx.ingress.kubernetes.io/proxy-send-timeout: "3600"
+  annotations: {}
+  host: domarchy.local
+  path: /
+  pathType: Prefix
+  tls: []
+
+resources:
+  limits:
+    memory: 9Gi          # ~1Gi over vm.memory for QEMU overhead and websockify
+  requests:
+    memory: 9Gi
+    cpu: "2"
+
+# First boot downloads a 5.8G ISO before QEMU starts listening on 5900. The
+# startup probe must tolerate that or the kubelet restarts the pod mid-download.
+startupProbe:
+  enabled: true
+  periodSeconds: 10
+  failureThreshold: 180  # 30 minutes
+
+livenessProbe:
+  enabled: true
+  periodSeconds: 30
+  failureThreshold: 3
+
+podAnnotations: {}
+podLabels: {}
+podSecurityContext: {}
+nodeSelector: {}
+tolerations: []
+affinity: {}
+priorityClassName: ""
+terminationGracePeriodSeconds: 60

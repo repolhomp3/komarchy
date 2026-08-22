@@ -1,0 +1,41 @@
+{{- if and .Values.persistence.enabled (not .Values.persistence.existingClaim) }}
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: {{ include "domarchy.fullname" . }}-data
+  labels:
+    {{- include "domarchy.labels" . | nindent 4 }}
+  annotations:
+    # Keep the installed VM disk when the release is uninstalled.
+    helm.sh/resource-policy: keep
+    {{- with .Values.persistence.annotations }}
+    {{- toYaml . | nindent 4 }}
+    {{- end }}
+spec:
+  accessModes:
+    {{- toYaml .Values.persistence.accessModes | nindent 4 }}
+  resources:
+    requests:
+      storage: {{ .Values.persistence.size | quote }}
+  {{- if .Values.persistence.storageClass }}
+  storageClassName: {{ .Values.persistence.storageClass | quote }}
+  {{- end }}
+{{- end }}
+{{- if and (eq .Values.shared.type "pvc") (not .Values.shared.existingClaim) }}
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: {{ include "domarchy.fullname" . }}-shared
+  labels:
+    {{- include "domarchy.labels" . | nindent 4 }}
+spec:
+  accessModes:
+    - ReadWriteOnce
+  resources:
+    requests:
+      storage: {{ .Values.shared.size | quote }}
+  {{- if .Values.shared.storageClass }}
+  storageClassName: {{ .Values.shared.storageClass | quote }}
+  {{- end }}
+{{- end }}

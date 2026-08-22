@@ -1,0 +1,29 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ include "domarchy.fullname" . }}
+  labels:
+    {{- include "domarchy.labels" . | nindent 4 }}
+  {{- with .Values.service.annotations }}
+  annotations:
+    {{- toYaml . | nindent 4 }}
+  {{- end }}
+spec:
+  type: {{ .Values.service.type }}
+  ports:
+    - name: vnc
+      port: {{ .Values.service.vnc.port }}
+      targetPort: vnc
+      protocol: TCP
+      {{- if and .Values.service.vnc.nodePort (eq .Values.service.type "NodePort") }}
+      nodePort: {{ .Values.service.vnc.nodePort }}
+      {{- end }}
+    - name: novnc
+      port: {{ .Values.service.novnc.port }}
+      targetPort: novnc
+      protocol: TCP
+      {{- if and .Values.service.novnc.nodePort (eq .Values.service.type "NodePort") }}
+      nodePort: {{ .Values.service.novnc.nodePort }}
+      {{- end }}
+  selector:
+    {{- include "domarchy.selectorLabels" . | nindent 4 }}

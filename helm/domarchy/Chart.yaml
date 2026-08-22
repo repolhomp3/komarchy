@@ -1,0 +1,15 @@
+apiVersion: v2
+name: domarchy
+description: Omarchy running in a QEMU/KVM virtual machine, reachable over VNC and noVNC
+type: application
+version: 0.1.0
+appVersion: "4.0.0"
+keywords:
+  - omarchy
+  - qemu
+  - kvm
+  - vnc
+  - novnc
+home: https://github.com/overthinkinglabs/domarchy
+sources:
+  - https://github.com/overthinkinglabs/domarchy

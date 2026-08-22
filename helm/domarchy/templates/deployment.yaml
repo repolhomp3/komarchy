@@ -1,0 +1,155 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "domarchy.fullname" . }}
+  labels:
+    {{- include "domarchy.labels" . | nindent 4 }}
+spec:
+  # A single VM owning a ReadWriteOnce disk: never run two replicas, and never
+  # let a new pod start before the old one releases the volume.
+  replicas: 1
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      {{- include "domarchy.selectorLabels" . | nindent 6 }}
+  template:
+    metadata:
+      labels:
+        {{- include "domarchy.selectorLabels" . | nindent 8 }}
+        {{- with .Values.podLabels }}
+        {{- toYaml . | nindent 8 }}
+        {{- end }}
+      {{- with .Values.podAnnotations }}
+      annotations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+    spec:
+      {{- with .Values.imagePullSecrets }}
+      imagePullSecrets:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.podSecurityContext }}
+      securityContext:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.priorityClassName }}
+      priorityClassName: {{ . }}
+      {{- end }}
+      terminationGracePeriodSeconds: {{ .Values.terminationGracePeriodSeconds }}
+      containers:
+        - name: domarchy
+          image: "{{ .Values.image.repository }}:{{ .Values.image.tag | default .Chart.AppVersion }}"
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          securityContext:
+            privileged: {{ .Values.kvm.privileged }}
+          env:
+            - name: MEMORY
+              value: {{ .Values.vm.memory | quote }}
+            - name: CPUS
+              value: {{ .Values.vm.cpus | quote }}
+            - name: DISK_SIZE
+              value: {{ .Values.vm.diskSize | quote }}
+            {{- if .Values.audio.enabled }}
+            - name: AUDIO
+              value: "pa"
+            - name: PULSE_SERVER
+              value: "unix:/tmp/pulse.socket"
+            {{- if .Values.audio.cookiePath }}
+            - name: PULSE_COOKIE
+              value: "/tmp/pulse.cookie"
+            {{- end }}
+            {{- else }}
+            - name: AUDIO
+              value: "none"
+            {{- end }}
+          ports:
+            - name: vnc
+              containerPort: 5900
+              protocol: TCP
+            - name: novnc
+              containerPort: 8900
+              protocol: TCP
+          {{- if .Values.startupProbe.enabled }}
+          # Guards the first-boot ISO download: QEMU does not listen on 5900
+          # until the ~5.8G image has finished downloading.
+          startupProbe:
+            tcpSocket:
+              port: vnc
+            periodSeconds: {{ .Values.startupProbe.periodSeconds }}
+            failureThreshold: {{ .Values.startupProbe.failureThreshold }}
+          {{- end }}
+          {{- if .Values.livenessProbe.enabled }}
+          livenessProbe:
+            tcpSocket:
+              port: vnc
+            periodSeconds: {{ .Values.livenessProbe.periodSeconds }}
+            failureThreshold: {{ .Values.livenessProbe.failureThreshold }}
+          {{- end }}
+          resources:
+            limits:
+              {{- toYaml .Values.resources.limits | nindent 14 }}
+              {{- if and (not .Values.kvm.privileged) .Values.kvm.deviceResource }}
+              {{- toYaml .Values.kvm.deviceResource | nindent 14 }}
+              {{- end }}
+            requests:
+              {{- toYaml .Values.resources.requests | nindent 14 }}
+              {{- if and (not .Values.kvm.privileged) .Values.kvm.deviceResource }}
+              {{- toYaml .Values.kvm.deviceResource | nindent 14 }}
+              {{- end }}
+          volumeMounts:
+            - name: data
+              mountPath: /data
+            {{- if ne .Values.shared.type "none" }}
+            - name: shared
+              mountPath: /shared
+            {{- end }}
+            {{- if .Values.audio.enabled }}
+            - name: pulse-socket
+              mountPath: /tmp/pulse.socket
+            {{- if .Values.audio.cookiePath }}
+            - name: pulse-cookie
+              mountPath: /tmp/pulse.cookie
+              readOnly: true
+            {{- end }}
+            {{- end }}
+      volumes:
+        - name: data
+          {{- if .Values.persistence.enabled }}
+          persistentVolumeClaim:
+            claimName: {{ include "domarchy.dataClaim" . }}
+          {{- else }}
+          emptyDir: {}
+          {{- end }}
+        {{- if eq .Values.shared.type "pvc" }}
+        - name: shared
+          persistentVolumeClaim:
+            claimName: {{ include "domarchy.sharedClaim" . }}
+        {{- else if eq .Values.shared.type "emptyDir" }}
+        - name: shared
+          emptyDir: {}
+        {{- end }}
+        {{- if .Values.audio.enabled }}
+        - name: pulse-socket
+          hostPath:
+            path: {{ .Values.audio.socketPath }}
+            type: Socket
+        {{- if .Values.audio.cookiePath }}
+        - name: pulse-cookie
+          hostPath:
+            path: {{ .Values.audio.cookiePath }}
+            type: File
+        {{- end }}
+        {{- end }}
+      {{- with .Values.nodeSelector }}
+      nodeSelector:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.affinity }}
+      affinity:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.tolerations }}
+      tolerations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}

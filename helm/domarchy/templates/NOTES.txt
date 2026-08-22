@@ -1,0 +1,46 @@
+{{ include "domarchy.fullname" . }} is starting.
+
+On first install the pod downloads a ~5.8G Omarchy ISO before QEMU comes up,
+then boots the installer. Expect several minutes before anything is reachable:
+
+  kubectl -n {{ .Release.Namespace }} logs -f deploy/{{ include "domarchy.fullname" . }}
+
+Reach the desktop:
+{{- if .Values.ingress.enabled }}
+
+  http{{ if .Values.ingress.tls }}s{{ end }}://{{ .Values.ingress.host }}{{ .Values.ingress.path }}
+{{- else if eq .Values.service.type "LoadBalancer" }}
+
+  kubectl -n {{ .Release.Namespace }} get svc {{ include "domarchy.fullname" . }} -w
+  # then browse to http://<EXTERNAL-IP>:{{ .Values.service.novnc.port }}
+{{- else if eq .Values.service.type "NodePort" }}
+
+  export NODE_IP=$(kubectl -n {{ .Release.Namespace }} get nodes -o jsonpath="{.items[0].status.addresses[0].address}")
+  export NODE_PORT=$(kubectl -n {{ .Release.Namespace }} get svc {{ include "domarchy.fullname" . }} -o jsonpath="{.spec.ports[?(@.name=='novnc')].nodePort}")
+  echo "http://$NODE_IP:$NODE_PORT"
+{{- else }}
+
+  kubectl -n {{ .Release.Namespace }} port-forward svc/{{ include "domarchy.fullname" . }} {{ .Values.service.novnc.port }}:{{ .Values.service.novnc.port }}
+  # then browse to http://127.0.0.1:{{ .Values.service.novnc.port }}
+{{- end }}
+
+Storage: {{ if .Values.persistence.enabled }}{{ .Values.persistence.size }} on claim {{ include "domarchy.dataClaim" . }}, holding the ISO (~5.8G) and a {{ .Values.vm.diskSize }} qcow2.
+The claim is annotated helm.sh/resource-policy: keep, so `helm uninstall` leaves
+your installed VM in place. Delete it by hand to reclaim the space.
+{{- else }}an emptyDir — THE VM IS LOST ON POD RESTART, and the ISO redownloads every time.
+Set persistence.enabled=true for anything you intend to keep.
+{{- end }}
+{{- if not .Values.kvm.privileged }}
+{{- if not .Values.kvm.deviceResource }}
+
+WARNING: kvm.privileged is false and kvm.deviceResource is empty, so the pod has
+no access to /dev/kvm. QEMU will fall back to TCG software emulation, which is
+too slow to use interactively.
+{{- end }}
+{{- end }}
+{{- if gt (add (int (regexReplaceAll "[^0-9]" .Values.vm.diskSize "")) 7) (int (regexReplaceAll "[^0-9]" .Values.persistence.size "")) }}
+
+WARNING: vm.diskSize ({{ .Values.vm.diskSize }}) plus the ~5.8G ISO may not fit in
+persistence.size ({{ .Values.persistence.size }}). The guest will hit ENOSPC if it
+fills its disk. Raise persistence.size or lower vm.diskSize.
+{{- end }}
