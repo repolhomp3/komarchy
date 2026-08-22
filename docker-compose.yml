@@ -9,6 +9,7 @@ services:
       - ./data:/data
       - ./shared:/shared
       - /run/user/1000/pulse/native:/tmp/pulse.socket
+      - ${HOME}/.config/pulse/cookie:/tmp/pulse.cookie:ro
     ports:
       - "5900:5900"
       - "8900:8900"
@@ -17,10 +18,15 @@ services:
       - MEMORY=8G
       - CPUS=4
       - PULSE_SERVER=unix:/tmp/pulse.socket
+      - PULSE_COOKIE=/tmp/pulse.cookie
     deploy:
       resources:
         limits:
-          memory: 8G
+          # Must exceed MEMORY: QEMU needs overhead beyond the guest allocation
+          # for page tables, device emulation and the VGA framebuffer, plus
+          # websockify. A limit equal to MEMORY gets the container OOMKilled
+          # once the guest touches most of its RAM.
+          memory: 10G
         reservations:
           memory: 8G
     restart: no
