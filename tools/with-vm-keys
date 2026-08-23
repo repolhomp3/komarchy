@@ -1,0 +1,40 @@
+#!/usr/bin/env bash
+# Release GNOME's grabbed shortcuts for the lifetime of one command, then put
+# them back. Ubuntu is the real desktop here; the VM is a guest, so it should
+# only hold the keyboard while you are actually looking at it.
+#
+#   tools/with-vm-keys vncviewer localhost:5900
+#   tools/with-vm-keys google-chrome --app=http://localhost:8900
+#
+# The shortcuts come back when the command exits, including on Ctrl+C or a
+# crash. If they were already released by hand, this leaves that alone rather
+# than restoring state it did not create.
+set -uo pipefail
+
+here="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+grabs="$here/gnome-key-grabs"
+
+if [[ $# -eq 0 ]]; then
+    echo "usage: with-vm-keys <command> [args...]" >&2
+    exit 2
+fi
+
+state="${XDG_STATE_HOME:-$HOME/.local/state}/domarchy/gnome-key-grabs.json"
+ours=0
+
+if [[ -e "$state" ]]; then
+    echo "Shortcuts are already released; leaving that as it is."
+else
+    "$grabs" release || exit 1
+    ours=1
+fi
+
+give_back() {
+    if (( ours )); then
+        ours=0
+        "$grabs" restore
+    fi
+}
+trap give_back EXIT INT TERM
+
+"$@"
