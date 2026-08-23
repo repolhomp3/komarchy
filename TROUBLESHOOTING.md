@@ -291,8 +291,13 @@ Originals are saved verbatim to `$XDG_STATE_HOME/domarchy/gnome-key-grabs.json`
 and written back on `restore`; a full before/after diff of all 2617 gsettings
 values round-trips identically.
 
-Note that while released you have no host lock shortcut, since `Super+L` was its
-only binding, and `Ctrl+Alt+Delete` no longer opens the GNOME logout dialog.
+Locking the host survives the trade. `Super+L` is GNOME's only lock binding and
+Omarchy wants that chord for its workspace layout toggle, so `release` moves host
+lock to **`Ctrl+Alt+L`** rather than dropping it -- the traditional lock chord,
+and one Omarchy binds nothing to. `restore` puts `Super+L` back.
+
+`Ctrl+Alt+Delete` no longer opens the GNOME logout dialog while released; log out
+from the system menu instead.
 
 ### The browser's own ceiling
 

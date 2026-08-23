@@ -11,6 +11,10 @@ Super is not the whole story. Omarchy also binds Alt+Tab (focus next window),
 Ctrl+Alt+Delete (close all windows) and Print (screenshot), and GNOME grabs all
 three -- Ctrl+Alt+Delete opens its logout dialog.
 
+Locking the host stays available: Super+L is GNOME's only lock binding and
+Omarchy wants that chord, so release moves host lock to Ctrl+Alt+L instead of
+dropping it.
+
   gnome-key-grabs release   # hand the shortcuts to the VM
   gnome-key-grabs restore   # give them back to GNOME
   gnome-key-grabs status
@@ -41,6 +45,16 @@ EXTRA = {
     "<Control><Alt>Delete", # Omarchy: close all windows / GNOME: log out
     "Print",                # Omarchy: screenshot
     "<Alt>Print",           # Omarchy: screen recording
+}
+
+
+# Shortcuts to hand back on a different key rather than simply drop. Super+L is
+# GNOME's only lock binding, and Omarchy wants that chord for its workspace
+# layout toggle, so locking the host would otherwise be unreachable from the
+# keyboard for as long as the grabs are released. Ctrl+Alt+L is the traditional
+# lock chord and Omarchy binds nothing to it.
+REPLACEMENTS = {
+    ("org.gnome.settings-daemon.plugins.media-keys", "screensaver"): "['<Control><Alt>l']",
 }
 
 
@@ -117,11 +131,13 @@ def release():
     with open(STATE, "w") as fh:
         json.dump([{"schema": s, "key": k, "value": v} for s, k, v in entries], fh, indent=2)
 
-    changed = failed = 0
+    changed = failed = swapped = 0
     for schema, key, raw in entries:
-        new = stripped(raw)
+        new = REPLACEMENTS.get((schema, key)) or stripped(raw)
         if new is None or new == raw:
             continue
+        if (schema, key) in REPLACEMENTS:
+            swapped += 1
         if sh("gsettings", "set", schema, key, new).returncode == 0:
             changed += 1
         else:
@@ -131,6 +147,8 @@ def release():
     print(f"Released {changed} binding(s); {len(entries)} saved to {STATE}")
     if failed:
         print(f"{failed} failed -- see above.", file=sys.stderr)
+    if swapped:
+        print("Lock the host with Ctrl+Alt+L while released (Super+L now goes to the VM).")
     print("Those shortcuts now reach the VM. Undo with: gnome-key-grabs restore")
 
 
