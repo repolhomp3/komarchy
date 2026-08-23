@@ -294,6 +294,29 @@ crashes.
 This is the right default on a machine whose host desktop is somebody's daily
 driver. Prefer it.
 
+### Remmina: scaled and grabbed at once
+
+TigerVNC solves isolation but not size. Remmina solves both, and is the setup
+that actually worked:
+
+```bash
+remmina -c tools/omarchy.remmina
+```
+
+The profile sets `scale=1` with `aspectscale=1` so the guest framebuffer is
+stretched to the window rather than blitted 1:1, `viewmode=3` for viewport
+full screen, and `keyboard_grab=1` so Super and Alt+Tab reach Omarchy. No host
+setting is changed, and the grab is a toolbar toggle rather than a mode you have
+to quit full screen to escape -- hover the top edge for the floating toolbar.
+
+Scaling is the whole difference. TigerVNC 1.12 has none, so on a display GNOME
+renders at 200% a 2560x1440 guest lands on about 1280x720 of glass. Remmina
+scales it to fill the monitor at any guest resolution.
+
+The grab is still a real trade while it is on: `Print` and `Super+L` go to the
+guest, not the host. That is not a bug and no configuration avoids it -- a key
+goes to one place. The difference is that releasing it is one click.
+
 ### Rewriting the host's shortcuts instead
 
 Only worth it for the browser, which cannot grab the keyboard (see below). It

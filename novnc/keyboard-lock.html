@@ -1,0 +1,22 @@
+<script>
+  // noVNC 1.6 ships no Keyboard Lock support, so Chrome keeps the shortcuts it
+  // reserves and GNOME keeps the ones it grabs -- neither reaches the guest.
+  // navigator.keyboard.lock() in fullscreen takes an active keyboard grab, which
+  // outranks the passive grabs GNOME registers, so Super+1..9, Super+L and
+  // Alt+Tab go to Omarchy with nothing changed on the host.
+  //
+  // Requires a secure context; http://localhost qualifies. Fullscreen must be
+  // entered from script, so use noVNC's own fullscreen button rather than F11.
+  (function () {
+    var kb = navigator.keyboard;
+    if (!kb || !kb.lock) return;
+
+    document.addEventListener('fullscreenchange', function () {
+      if (document.fullscreenElement) {
+        kb.lock().catch(function () { /* denied: keys keep going to Chrome */ });
+      } else {
+        try { kb.unlock(); } catch (e) { /* nothing held */ }
+      }
+    });
+  })();
+</script>
