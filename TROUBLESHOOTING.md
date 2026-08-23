@@ -247,18 +247,88 @@ decisive for separating guest-side from transport-side rendering faults.
 
 ---
 
-## noVNC and the Super key
+## Getting keybindings through to the guest
 
-Omarchy is Super-driven, and GNOME on the host claims Super for the Activities
-overlay, so Chrome never forwards it to noVNC. The bindings themselves are fine —
-verify with `sendkey meta_l-k`, which bypasses the browser and opens the
-cheatsheet.
+Omarchy is Super-driven, and on a GNOME host almost every Super combination is
+taken before the browser sees it. Enumerate the damage:
 
-Options, best first:
+```bash
+tools/gnome-super-keys status
+```
 
-1. Native VNC client with keyboard grab (`vncviewer localhost:5900`, Remmina).
-2. noVNC fullscreen — helps, still unreliable for Super under GNOME.
-3. Remap the mod key to `ALT` in `~/.config/hypr/bindings.lua`.
+On a stock Ubuntu GNOME desktop that reports **85** bindings, and they are the
+worst possible set for a tiling WM: `Super+1..9` (workspaces, claimed twice --
+by gnome-shell *and* dash-to-dock), `Super+Space` (launcher, claimed by both
+ibus and the input-source switcher), `Super+Left/Right`, `Super+Tab`,
+`Super+D/H/A/S/Q/N/P/V/M`. `Super+L` is the one that stings: it locks the
+**host** rather than reaching the guest.
+
+These are grabbed at the X server, so no browser setting can win them back.
+
+### Freeing them
+
+```bash
+tools/gnome-super-keys release   # hand Super to the VM
+tools/gnome-super-keys restore   # give it back to GNOME
+```
+
+`release` strips only the Super accelerators and leaves any others on the same
+action intact -- `move-to-workspace-left` keeps its `<Control><Shift><Alt>Left`.
+Originals are saved verbatim to `$XDG_STATE_HOME/domarchy/gnome-super-keys.json`
+and written back on `restore`; a full before/after diff of all 2617 gsettings
+values round-trips identically.
+
+Note that while released you have no host lock shortcut, since `Super+L` was the
+only binding for it.
+
+### The browser's own ceiling
+
+Releasing GNOME's grabs is not sufficient, and no configuration makes it so.
+Chrome reserves `Ctrl+W`, `Ctrl+T`, `Ctrl+N`, `F11` and friends for itself. A
+page can only override those through the Keyboard Lock API, and **noVNC 1.6 does
+not implement it**:
+
+```bash
+docker exec domarchy grep -rn 'keyboard\.lock\|navigator\.keyboard' /opt/novnc/
+# no matches
+```
+
+So in a browser those combos reach Chrome, never the guest. Everything else,
+Super included, works once the grabs are released.
+
+### No ceiling at all: a native client
+
+TigerVNC takes a real keyboard grab and forwards the lot, with no host settings
+touched:
+
+```bash
+vncviewer -FullScreen -FullscreenSystemKeys localhost:5900
+```
+
+`FullscreenSystemKeys` is what passes Super and Alt+Tab straight through. This is
+the better way to *learn* the WM -- every binding behaves as it will on real
+hardware. Use the browser for casual access, this for muscle memory.
+
+### Which layer ate my keypress?
+
+```bash
+google-chrome tools/key-inspector.html
+```
+
+Anything the page logs is a key Chrome received, and therefore one noVNC can
+forward. Press a combo and see nothing and it was taken upstream -- GNOME if it
+is a Super combo, Chrome if it is one of its reserved set. That splits a
+"binding does not work" report into host-side and guest-side in one step.
+
+Ground truth from below the whole stack, bypassing browser and VNC alike:
+
+```
+sendkey meta_l-k        # via the QEMU monitor; opens the Omarchy cheatsheet
+```
+
+If `sendkey` works and the browser does not, the guest is fine and the problem
+is above it.
+
 
 ---
 

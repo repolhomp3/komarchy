@@ -1,0 +1,99 @@
+<!doctype html>
+<meta charset="utf-8">
+<title>Key inspector</title>
+<style>
+  :root { color-scheme: dark; }
+  body { background:#191a25; color:#d6d9e0; font:14px/1.5 ui-monospace,Menlo,Consolas,monospace;
+         margin:0; padding:24px; }
+  h1 { font-size:16px; margin:0 0 4px; color:#a8cd76; letter-spacing:.06em; }
+  p.sub { margin:0 0 20px; color:#8b8fa3; }
+  .mods { display:flex; gap:8px; margin-bottom:20px; flex-wrap:wrap; }
+  .mod { padding:6px 14px; border:1px solid #2f3145; border-radius:4px; color:#6b6f85; }
+  .mod.on { background:#a8cd76; border-color:#a8cd76; color:#191a25; font-weight:700; }
+  .grid { display:grid; grid-template-columns:repeat(auto-fill,minmax(120px,1fr)); gap:6px; margin-bottom:20px; }
+  .t { padding:6px 10px; border:1px solid #2f3145; border-radius:4px; text-align:center; color:#6b6f85; }
+  .t.hit { background:#22301c; border-color:#a8cd76; color:#a8cd76; }
+  #log { background:#12131c; border:1px solid #2f3145; border-radius:4px; padding:12px;
+         height:340px; overflow:auto; white-space:pre; font-size:13px; }
+  .k { color:#a8cd76; } .c { color:#7aa2f7; } .m { color:#e0af68; } .n { color:#565a70; }
+  button { background:#2f3145; color:#d6d9e0; border:0; border-radius:4px; padding:7px 14px;
+           font:inherit; cursor:pointer; margin-bottom:12px; }
+</style>
+<h1>KEY INSPECTOR</h1>
+<p class="sub">Everything this page logs is a key Chrome received &mdash; meaning noVNC can forward it.
+Press a combo and see nothing? It was taken upstream, by GNOME or by Chrome itself.</p>
+
+<div class="mods">
+  <span class="mod" id="m-ctrl">Ctrl</span>
+  <span class="mod" id="m-alt">Alt</span>
+  <span class="mod" id="m-shift">Shift</span>
+  <span class="mod" id="m-meta">Super / Meta</span>
+</div>
+
+<div class="grid" id="targets"></div>
+<button onclick="document.getElementById('log').textContent=''">clear log</button>
+<div id="log"></div>
+
+<script>
+  // Combos worth checking: the Super row a tiling WM leans on, plus the ones
+  // Chrome reserves for itself. If a Chrome-reserved combo never lights up,
+  // that is expected in a browser -- noVNC 1.6 has no Keyboard Lock support.
+  const targets = [
+    ['Meta','Space'],['Meta','Enter'],['Meta','KeyK'],['Meta','KeyW'],
+    ['Meta','KeyL'],['Meta','KeyQ'],['Meta','KeyA'],['Meta','KeyS'],
+    ['Meta','Digit1'],['Meta','Digit2'],['Meta','Digit3'],['Meta','Digit4'],
+    ['Meta','ArrowLeft'],['Meta','ArrowRight'],['Meta','Tab'],
+    ['Ctrl','KeyW'],['Ctrl','KeyT'],['Ctrl','KeyN'],
+  ];
+  const label = ([mod,code]) =>
+    mod + '+' + code.replace(/^(Key|Digit|Arrow)/,'');
+  const cells = {};
+  const grid = document.getElementById('targets');
+  for (const t of targets) {
+    const d = document.createElement('div');
+    d.className = 't'; d.textContent = label(t);
+    grid.appendChild(d);
+    cells[t[0] + ':' + t[1]] = d;
+  }
+
+  const log = document.getElementById('log');
+  function line(html) {
+    log.insertAdjacentHTML('beforeend', html + '\n');
+    log.scrollTop = log.scrollHeight;
+  }
+
+  addEventListener('keydown', e => {
+    // Stop the browser acting on anything it still owns, so the page stays put.
+    e.preventDefault();
+
+    document.getElementById('m-ctrl').classList.toggle('on', e.ctrlKey);
+    document.getElementById('m-alt').classList.toggle('on', e.altKey);
+    document.getElementById('m-shift').classList.toggle('on', e.shiftKey);
+    document.getElementById('m-meta').classList.toggle('on', e.metaKey);
+
+    const mods = [];
+    if (e.ctrlKey) mods.push('Ctrl');
+    if (e.altKey) mods.push('Alt');
+    if (e.shiftKey) mods.push('Shift');
+    if (e.metaKey) mods.push('Meta');
+
+    for (const m of mods) {
+      const c = cells[m + ':' + e.code];
+      if (c) c.classList.add('hit');
+    }
+
+    line(`<span class="m">${(mods.join('+') || '-').padEnd(22)}</span>`
+       + `<span class="k">key=${String(e.key).padEnd(12)}</span>`
+       + `<span class="c">code=${String(e.code).padEnd(14)}</span>`
+       + `<span class="n">repeat=${e.repeat}</span>`);
+  });
+
+  addEventListener('keyup', e => {
+    document.getElementById('m-ctrl').classList.toggle('on', e.ctrlKey);
+    document.getElementById('m-alt').classList.toggle('on', e.altKey);
+    document.getElementById('m-shift').classList.toggle('on', e.shiftKey);
+    document.getElementById('m-meta').classList.toggle('on', e.metaKey);
+  });
+
+  addEventListener('blur', () => line('<span class="n">-- window lost focus --</span>'));
+</script>

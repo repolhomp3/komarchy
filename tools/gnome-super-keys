@@ -1,0 +1,142 @@
+#!/usr/bin/env python3
+"""Release GNOME's Super-key grabs so they reach a VM in the browser.
+
+GNOME claims dozens of Super combinations at the X server before Chrome ever
+sees the keypress, and most of them are exactly the ones a tiling WM wants:
+Super+1..9 for workspaces, Super+Space for the launcher, Super+Left/Right for
+tiling. Super+L is the nastiest -- it locks the *host* rather than reaching the
+guest.
+
+  gnome-super-keys release   # hand Super to the VM
+  gnome-super-keys restore   # give it back to GNOME
+  gnome-super-keys status
+
+Only the Super entries are stripped; other accelerators bound to the same action
+are left alone, so e.g. move-to-workspace-left keeps its Ctrl+Shift+Alt+Left.
+Every original value is saved verbatim and restored verbatim.
+"""
+
+import ast
+import json
+import os
+import subprocess
+import sys
+
+STATE = os.path.join(
+    os.environ.get("XDG_STATE_HOME", os.path.expanduser("~/.local/state")),
+    "domarchy", "gnome-super-keys.json",
+)
+
+
+def sh(*args):
+    return subprocess.run(args, capture_output=True, text=True)
+
+
+def holds_super(raw):
+    return "<Super>" in raw or "'Super_L'" in raw or "'Super_R'" in raw
+
+
+def scan():
+    """Every schema/key whose current value mentions Super."""
+    found = []
+    schemas = sh("gsettings", "list-schemas").stdout.split()
+    for schema in sorted(set(schemas)):
+        listed = sh("gsettings", "list-recursively", schema)
+        if listed.returncode != 0:
+            continue
+        for line in listed.stdout.splitlines():
+            parts = line.split(" ", 2)
+            if len(parts) != 3:
+                continue
+            s, key, raw = parts
+            if s == schema and holds_super(raw):
+                found.append((schema, key, raw))
+    return found
+
+
+def stripped(raw):
+    """The value with Super accelerators removed, or None to leave alone."""
+    if raw.startswith("["):
+        try:
+            keep = [a for a in ast.literal_eval(raw) if "Super" not in a]
+        except (ValueError, SyntaxError):
+            return None
+        return "[" + ", ".join(repr(a) for a in keep) + "]"
+    if raw.startswith("'"):
+        return "''"
+    return None
+
+
+def release():
+    if os.path.exists(STATE):
+        sys.exit(f"Already released (backup at {STATE}). Run 'restore' first.")
+    entries = scan()
+    if not entries:
+        sys.exit("No Super bindings found -- nothing to release.")
+
+    os.makedirs(os.path.dirname(STATE), exist_ok=True)
+    with open(STATE, "w") as fh:
+        json.dump([{"schema": s, "key": k, "value": v} for s, k, v in entries], fh, indent=2)
+
+    changed = failed = 0
+    for schema, key, raw in entries:
+        new = stripped(raw)
+        if new is None or new == raw:
+            continue
+        if sh("gsettings", "set", schema, key, new).returncode == 0:
+            changed += 1
+        else:
+            failed += 1
+            print(f"  could not set {schema} {key}", file=sys.stderr)
+
+    print(f"Released {changed} binding(s); {len(entries)} saved to {STATE}")
+    if failed:
+        print(f"{failed} failed -- see above.", file=sys.stderr)
+    print("Super now reaches the browser. Undo with: gnome-super-keys restore")
+
+
+def restore():
+    if not os.path.exists(STATE):
+        sys.exit("Nothing to restore -- no backup found.")
+    with open(STATE) as fh:
+        saved = json.load(fh)
+
+    restored = failed = 0
+    for item in saved:
+        # The saved text is verbatim `gsettings get` output, which is valid
+        # GVariant, so it round-trips through `set` unchanged.
+        if sh("gsettings", "set", item["schema"], item["key"], item["value"]).returncode == 0:
+            restored += 1
+        else:
+            failed += 1
+            print(f"  could not restore {item['schema']} {item['key']}", file=sys.stderr)
+
+    if failed:
+        print(f"{failed} binding(s) failed; keeping backup at {STATE}", file=sys.stderr)
+        sys.exit(1)
+    os.remove(STATE)
+    print(f"Restored {restored} binding(s). GNOME has Super back.")
+
+
+def status():
+    live = scan()
+    if os.path.exists(STATE):
+        with open(STATE) as fh:
+            print(f"RELEASED -- {len(json.load(fh))} binding(s) backed up at {STATE}")
+    else:
+        print("NORMAL -- GNOME holds its usual shortcuts")
+    print(f"{len(live)} Super binding(s) currently active")
+    for schema, key, raw in live:
+        print(f"  {schema} {key} = {raw}")
+
+
+if __name__ == "__main__":
+    action = sys.argv[1] if len(sys.argv) > 1 else "status"
+    if action == "release":
+        release()
+    elif action == "restore":
+        restore()
+    elif action == "status":
+        status()
+    else:
+        sys.exit(__doc__)
