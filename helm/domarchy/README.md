@@ -15,6 +15,11 @@ First install downloads a ~5.8G ISO and then boots the Omarchy installer. Walk
 through setup in the browser; when the installer reboots the guest it boots the
 installed disk rather than looping back into setup.
 
+Whether to boot the installer is decided by reading the disk's boot sector, so a
+pod rescheduled part-way through setup returns to the installer instead of
+stranding itself on a blank disk. Set `FORCE_INSTALL=1` to reinstall over a
+working VM.
+
 ## What differs from docker-compose
 
 | | compose | chart |

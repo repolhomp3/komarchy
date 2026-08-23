@@ -1,6 +1,6 @@
 # Troubleshooting domarchy
 
-Findings from a full bring-up session: five defects, their root causes, and the
+Findings from a full bring-up session: seven defects, their root causes, and the
 fixes applied. Ordered roughly as you hit them.
 
 ---
@@ -168,6 +168,65 @@ Note this was **not** the cause of the black screen — the desktop had rendered
 on plain `VGA` before the upgrade. virtio-vga is the better device for Hyprland
 and is confirmed working (the guest picks up the EDID mode), but it fixed
 nothing on its own.
+
+---
+
+## 7. VM permanently unbootable after a restart mid-install
+
+**Symptom:** after the pod or container is replaced, the VM never comes back:
+
+```
+Boot failed: not a bootable disk
+Booting from DVD/CD... Boot failed: Could not read from CDROM (code 0003)
+iPXE ... Nothing to boot: No such file or directory
+No bootable device.
+```
+
+Nothing recovers it — every subsequent restart lands in the same place.
+
+**Cause:** the sequel to finding 2. Boot order was right, but the *branch
+choosing* it was wrong. `entrypoint.sh` used the existence of the qcow2 as a
+proxy for "an OS is installed", and `qemu-img create` makes that file in the
+first seconds of the first boot. So the proxy only holds if the install
+completes inside the lifetime of one container. It did not here: a k3d node
+reboot replaced the pod while the installer was still sitting at its prompt,
+leaving a blank 196K qcow2 on the PVC. On the next start the existence test took
+the "already installed" path — `order=c`, no `-cdrom` — and pointed QEMU at an
+empty disk with no installer attached.
+
+Note the failure is *sticky*: the installer is exactly what would write the
+missing OS, and it is the thing the logic has decided not to attach.
+
+**Fix:** decide from what is on the disk, not from whether the file exists.
+An installed disk carries bootloader code in the MBR bootstrap area (Omarchy 4
+uses Limine) followed by the 0x55AA signature:
+
+```bash
+qemu-img dd -U -f qcow2 -O raw bs=512 count=1 if=$DISK of=/tmp/mbr.bin
+od -An -v -tx1 -j510 -N2 /tmp/mbr.bin    # 55 aa on an installed disk
+od -An -v -tx1 -N440 /tmp/mbr.bin        # Limine boot code; zeros if not installed
+```
+
+The signature alone is **not** sufficient. GPT partitioning writes a protective
+MBR that carries 0x55AA over a zeroed bootstrap, so a restart between
+partitioning and bootloader install would look installed and dead-end the same
+way. Both halves are required.
+
+`od -v` is load-bearing: without it `od` collapses repeated identical lines to
+`*`, and an all-zero bootstrap then reads as non-zero — inverting the test. This
+bit the first version of the check.
+
+Verified against four disk states — installed (bootable), freshly created
+(not), GPT-partitioned without a bootloader (not), and absent (not).
+
+`entrypoint.sh` also now fails loudly if it needs the ISO and the ISO is missing
+or empty, rather than handing QEMU a `-cdrom` path that is not there, and
+accepts `FORCE_INSTALL=1` to re-run the installer over a working disk.
+
+**Unrelated to the chart:** the pod was not OOM-killed and no probe fired.
+`kubectl get events` showed `node(s) were unschedulable` then an untolerated
+taint — the k3d node restarted with the host. `restartCount` stayed 0 because
+the pod was replaced, not restarted.
 
 ---
 
