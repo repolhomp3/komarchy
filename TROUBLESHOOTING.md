@@ -276,11 +276,28 @@ Super is not the whole story. Six of the 91 have no Super in them at all:
 
 These are grabbed at the X server, so no browser setting can win them back.
 
-### Freeing them
+### Freeing them, only while you are using the VM
+
+The host here is somebody's actual desktop and the VM is a guest on it, so the
+shortcuts should move for the length of a session and no longer. Wrap whatever
+you connect with:
 
 ```bash
-tools/gnome-key-grabs release   # hand Super to the VM
-tools/gnome-key-grabs restore   # give it back to GNOME
+tools/with-vm-keys vncviewer localhost:5900
+tools/with-vm-keys google-chrome --app=http://localhost:8900
+```
+
+They return when that command exits -- on Ctrl+C or a crash too, via a trap,
+verified against SIGTERM. If they were already released by hand, the wrapper
+leaves that alone rather than restoring state it did not set up.
+
+The toggle underneath is there for a long session where you would rather not keep
+a wrapper process around:
+
+```bash
+tools/gnome-key-grabs release   # hand the shortcuts to the VM
+tools/gnome-key-grabs restore   # give them back to GNOME
+tools/gnome-key-grabs status
 ```
 
 `release` strips only the conflicting accelerators and leaves any others on the
