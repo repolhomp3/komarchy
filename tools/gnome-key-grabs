@@ -1,15 +1,19 @@
 #!/usr/bin/env python3
-"""Release GNOME's Super-key grabs so they reach a VM in the browser.
+"""Release the keyboard shortcuts GNOME grabs, so they reach a VM instead.
 
-GNOME claims dozens of Super combinations at the X server before Chrome ever
-sees the keypress, and most of them are exactly the ones a tiling WM wants:
-Super+1..9 for workspaces, Super+Space for the launcher, Super+Left/Right for
-tiling. Super+L is the nastiest -- it locks the *host* rather than reaching the
-guest.
+GNOME claims dozens of Super combinations at the X server before the browser
+ever sees the keypress, and they are exactly the ones a tiling WM wants:
+Super+1..9 for workspaces, Super+Space for the menu, Super+Left/Right for focus.
+Super+L is the nastiest -- Omarchy toggles the workspace layout with it, GNOME
+locks the *host*.
 
-  gnome-super-keys release   # hand Super to the VM
-  gnome-super-keys restore   # give it back to GNOME
-  gnome-super-keys status
+Super is not the whole story. Omarchy also binds Alt+Tab (focus next window),
+Ctrl+Alt+Delete (close all windows) and Print (screenshot), and GNOME grabs all
+three -- Ctrl+Alt+Delete opens its logout dialog.
+
+  gnome-key-grabs release   # hand the shortcuts to the VM
+  gnome-key-grabs restore   # give them back to GNOME
+  gnome-key-grabs status
 
 Only the Super entries are stripped; other accelerators bound to the same action
 are left alone, so e.g. move-to-workspace-left keeps its Ctrl+Shift+Alt+Left.
@@ -24,20 +28,52 @@ import sys
 
 STATE = os.path.join(
     os.environ.get("XDG_STATE_HOME", os.path.expanduser("~/.local/state")),
-    "domarchy", "gnome-super-keys.json",
+    "domarchy", "gnome-key-grabs.json",
 )
+
+# Non-Super accelerators that Omarchy binds and GNOME also grabs. Kept as an
+# explicit list rather than a pattern: releasing a shortcut the guest has no use
+# for would cost host function for nothing.
+EXTRA = {
+    "<Alt>Tab",             # Omarchy: focus next window
+    "<Shift><Alt>Tab",      # Omarchy: focus previous window
+    "<Control><Alt>Tab",    # Omarchy: focus next monitor
+    "<Control><Alt>Delete", # Omarchy: close all windows / GNOME: log out
+    "Print",                # Omarchy: screenshot
+    "<Alt>Print",           # Omarchy: screen recording
+}
+
+
+def normalize(accel):
+    """GNOME writes Control three ways; compare them as one."""
+    return accel.replace("<Primary>", "<Control>").replace("<Ctrl>", "<Control>")
+
+
+def conflicts(accel):
+    # Not every gsettings array holds accelerator strings; some hold tuples.
+    if not isinstance(accel, str):
+        return False
+    return "Super" in accel or normalize(accel) in EXTRA
 
 
 def sh(*args):
     return subprocess.run(args, capture_output=True, text=True)
 
 
-def holds_super(raw):
-    return "<Super>" in raw or "'Super_L'" in raw or "'Super_R'" in raw
+def wanted(raw):
+    """Does this raw gsettings value hold a shortcut we need to free?"""
+    if raw.startswith("["):
+        try:
+            return any(conflicts(a) for a in ast.literal_eval(raw))
+        except (ValueError, SyntaxError):
+            return False
+    # Plain strings here are overlay-key and mouse-button-modifier, where only
+    # Super is ever in the way.
+    return "'Super_L'" in raw or "'Super_R'" in raw or "<Super>" in raw
 
 
 def scan():
-    """Every schema/key whose current value mentions Super."""
+    """Every schema/key whose current value holds a shortcut we want freed."""
     found = []
     schemas = sh("gsettings", "list-schemas").stdout.split()
     for schema in sorted(set(schemas)):
@@ -49,7 +85,7 @@ def scan():
             if len(parts) != 3:
                 continue
             s, key, raw = parts
-            if s == schema and holds_super(raw):
+            if s == schema and wanted(raw):
                 found.append((schema, key, raw))
     return found
 
@@ -58,9 +94,12 @@ def stripped(raw):
     """The value with Super accelerators removed, or None to leave alone."""
     if raw.startswith("["):
         try:
-            keep = [a for a in ast.literal_eval(raw) if "Super" not in a]
+            parsed = ast.literal_eval(raw)
         except (ValueError, SyntaxError):
             return None
+        if not all(isinstance(a, str) for a in parsed):
+            return None
+        keep = [a for a in parsed if not conflicts(a)]
         return "[" + ", ".join(repr(a) for a in keep) + "]"
     if raw.startswith("'"):
         return "''"
@@ -72,7 +111,7 @@ def release():
         sys.exit(f"Already released (backup at {STATE}). Run 'restore' first.")
     entries = scan()
     if not entries:
-        sys.exit("No Super bindings found -- nothing to release.")
+        sys.exit("No grabbed shortcuts found -- nothing to release.")
 
     os.makedirs(os.path.dirname(STATE), exist_ok=True)
     with open(STATE, "w") as fh:
@@ -92,7 +131,7 @@ def release():
     print(f"Released {changed} binding(s); {len(entries)} saved to {STATE}")
     if failed:
         print(f"{failed} failed -- see above.", file=sys.stderr)
-    print("Super now reaches the browser. Undo with: gnome-super-keys restore")
+    print("Those shortcuts now reach the VM. Undo with: gnome-key-grabs restore")
 
 
 def restore():
@@ -115,7 +154,7 @@ def restore():
         print(f"{failed} binding(s) failed; keeping backup at {STATE}", file=sys.stderr)
         sys.exit(1)
     os.remove(STATE)
-    print(f"Restored {restored} binding(s). GNOME has Super back.")
+    print(f"Restored {restored} binding(s). GNOME has its shortcuts back.")
 
 
 def status():
@@ -125,7 +164,7 @@ def status():
             print(f"RELEASED -- {len(json.load(fh))} binding(s) backed up at {STATE}")
     else:
         print("NORMAL -- GNOME holds its usual shortcuts")
-    print(f"{len(live)} Super binding(s) currently active")
+    print(f"{len(live)} grabbed binding(s) currently active")
     for schema, key, raw in live:
         print(f"  {schema} {key} = {raw}")
 

@@ -253,33 +253,46 @@ Omarchy is Super-driven, and on a GNOME host almost every Super combination is
 taken before the browser sees it. Enumerate the damage:
 
 ```bash
-tools/gnome-super-keys status
+tools/gnome-key-grabs status
 ```
 
-On a stock Ubuntu GNOME desktop that reports **85** bindings, and they are the
+On a stock Ubuntu GNOME desktop that reports **91** bindings, and they are the
 worst possible set for a tiling WM: `Super+1..9` (workspaces, claimed twice --
-by gnome-shell *and* dash-to-dock), `Super+Space` (launcher, claimed by both
-ibus and the input-source switcher), `Super+Left/Right`, `Super+Tab`,
-`Super+D/H/A/S/Q/N/P/V/M`. `Super+L` is the one that stings: it locks the
-**host** rather than reaching the guest.
+by gnome-shell *and* dash-to-dock), `Super+Space` (the Omarchy menu, claimed by
+both ibus and the input-source switcher), `Super+Left/Right`, `Super+Tab`,
+`Super+D/H/A/S/Q/N/P/V/M`. `Super+L` is the one that stings: Omarchy toggles the
+workspace layout with it, GNOME locks the **host**.
+
+Super is not the whole story. Six of the 91 have no Super in them at all:
+
+| Combo | Omarchy | GNOME |
+|---|---|---|
+| `Alt+Tab` | focus next window | switch-windows |
+| `Shift+Alt+Tab` | focus previous window | switch-windows-backward |
+| `Ctrl+Alt+Tab` | focus next monitor | switch-panels |
+| `Ctrl+Alt+Delete` | close all windows | **log out** |
+| `Print` | screenshot | show-screenshot-ui |
+| `Alt+Print` | screen recording | screenshot-window |
 
 These are grabbed at the X server, so no browser setting can win them back.
 
 ### Freeing them
 
 ```bash
-tools/gnome-super-keys release   # hand Super to the VM
-tools/gnome-super-keys restore   # give it back to GNOME
+tools/gnome-key-grabs release   # hand Super to the VM
+tools/gnome-key-grabs restore   # give it back to GNOME
 ```
 
-`release` strips only the Super accelerators and leaves any others on the same
-action intact -- `move-to-workspace-left` keeps its `<Control><Shift><Alt>Left`.
-Originals are saved verbatim to `$XDG_STATE_HOME/domarchy/gnome-super-keys.json`
+`release` strips only the conflicting accelerators and leaves any others on the
+same action intact -- `move-to-workspace-left` keeps its
+`<Control><Shift><Alt>Left`. The non-Super set is an explicit list rather than a
+pattern, so no host shortcut is given up that the guest has no use for.
+Originals are saved verbatim to `$XDG_STATE_HOME/domarchy/gnome-key-grabs.json`
 and written back on `restore`; a full before/after diff of all 2617 gsettings
 values round-trips identically.
 
-Note that while released you have no host lock shortcut, since `Super+L` was the
-only binding for it.
+Note that while released you have no host lock shortcut, since `Super+L` was its
+only binding, and `Ctrl+Alt+Delete` no longer opens the GNOME logout dialog.
 
 ### The browser's own ceiling
 
@@ -305,9 +318,24 @@ touched:
 vncviewer -FullScreen -FullscreenSystemKeys localhost:5900
 ```
 
-`FullscreenSystemKeys` is what passes Super and Alt+Tab straight through. This is
-the better way to *learn* the WM -- every binding behaves as it will on real
-hardware. Use the browser for casual access, this for muscle memory.
+`FullscreenSystemKeys` is what passes Super and Alt+Tab straight through.
+
+It has one drawback, and on a HiDPI desktop it is decisive: **TigerVNC 1.12 has
+no client-side scaling**, so it draws the guest 1:1. Under GNOME's 2x scaling
+that means a 2560x1440 guest occupies 1280x720 of physical screen -- a postage
+stamp on a 4K panel. noVNC scales (`resize: scale`, set in the Dockerfile) and
+fills the window at any guest resolution.
+
+So on a HiDPI host the choice inverts: the browser wins on size, the native
+client wins on the last few keys. Since Omarchy binds almost everything to
+Super, and Super is exactly what `release` gives back, the browser is the better
+daily driver. Reach for the native client when you need a combo Chrome reserves.
+
+Guest resolution is set with `XRES`/`YRES` in `docker-compose.yml`. Because
+noVNC scales, it controls sharpness rather than window size -- and there is no
+host GPU passed through, so Hyprland composites through llvmpipe on the CPU.
+2560x1440 is a reasonable ceiling; 4K costs more than twice the pixels for no
+visible gain once scaled into a browser.
 
 ### Which layer ate my keypress?
 

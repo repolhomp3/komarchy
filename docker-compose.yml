@@ -17,6 +17,13 @@ services:
       - DISPLAY=:0
       - MEMORY=8G
       - CPUS=4
+      # The guest framebuffer size. noVNC scales this to fit the browser window
+      # (resize: scale), so this sets sharpness rather than window size. There is
+      # no host GPU passed through, so Hyprland composites via llvmpipe on the
+      # CPU -- 4K costs over twice the pixels of 1440p for no visible gain once
+      # it is scaled into a browser. Raise if you have cores to spare.
+      - XRES=2560
+      - YRES=1440
       - PULSE_SERVER=unix:/tmp/pulse.socket
       - PULSE_COOKIE=/tmp/pulse.cookie
     deploy:
