@@ -1,0 +1,23 @@
+#!/usr/bin/env bash
+# Connect to the Omarchy VM with the keyboard isolated to the container.
+#
+# In full screen, TigerVNC takes an X keyboard grab, and an active grab outranks
+# the passive grabs GNOME registers for its own shortcuts. So Super+1..9,
+# Super+L, Alt+Tab and the rest reach Omarchy while the viewer is focused --
+# without a single host setting being changed.
+#
+# Leave full screen (F8, or the F8 menu) and the host is immediately itself
+# again: Super+L locks Ubuntu, Super opens the Activities overview. Nothing to
+# restore, because nothing was modified.
+#
+#   tools/domarchy-viewer            # localhost:5900
+#   tools/domarchy-viewer host:port
+set -uo pipefail
+
+target="${1:-localhost:5900}"
+
+exec vncviewer \
+    -FullScreen \
+    -FullscreenSystemKeys=1 \
+    -RemoteResize=0 \
+    "$target"

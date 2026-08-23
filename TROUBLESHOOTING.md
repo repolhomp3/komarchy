@@ -276,45 +276,47 @@ Super is not the whole story. Six of the 91 have no Super in them at all:
 
 These are grabbed at the X server, so no browser setting can win them back.
 
-### Freeing them, only while you are using the VM
+### The way that changes nothing on the host
 
-The host here is somebody's actual desktop and the VM is a guest on it, so the
-shortcuts should move for the length of a session and no longer. Wrap whatever
-you connect with:
+An *active* X keyboard grab outranks the passive grabs GNOME registers for its
+shortcuts. TigerVNC takes one in full screen, so the container gets the whole
+keyboard -- Super+1..9, Super+L, Alt+Tab -- with no host setting touched:
 
 ```bash
-tools/with-vm-keys vncviewer localhost:5900
+tools/domarchy-viewer            # vncviewer -FullScreen -FullscreenSystemKeys
+```
+
+Leave full screen and the host is itself again immediately. `Super+L` locks
+Ubuntu, `Super` opens the overview. There is nothing to restore because nothing
+was changed, and no way to be left in a half-configured state if the viewer
+crashes.
+
+This is the right default on a machine whose host desktop is somebody's daily
+driver. Prefer it.
+
+### Rewriting the host's shortcuts instead
+
+Only worth it for the browser, which cannot grab the keyboard (see below). It
+edits live GNOME settings, so it changes the host's behaviour for as long as it
+is in effect:
+
+```bash
 tools/with-vm-keys google-chrome --app=http://localhost:8900
 ```
 
-They return when that command exits -- on Ctrl+C or a crash too, via a trap,
-verified against SIGTERM. If they were already released by hand, the wrapper
-leaves that alone rather than restoring state it did not set up.
+That releases the 91 grabbed accelerators for the lifetime of the command and
+restores them when it exits, including via a trap on Ctrl+C or a crash. The
+underlying toggle is `tools/gnome-key-grabs release|restore|status`.
 
-The toggle underneath is there for a long session where you would rather not keep
-a wrapper process around:
+`release` strips only the conflicting accelerators and keeps any others on the
+same action -- `move-to-workspace-left` keeps its `<Control><Shift><Alt>Left`.
+Originals are saved verbatim to `$XDG_STATE_HOME/domarchy/gnome-key-grabs.json`;
+a full before/after diff of all 2617 gsettings values round-trips identically.
 
-```bash
-tools/gnome-key-grabs release   # hand the shortcuts to the VM
-tools/gnome-key-grabs restore   # give them back to GNOME
-tools/gnome-key-grabs status
-```
-
-`release` strips only the conflicting accelerators and leaves any others on the
-same action intact -- `move-to-workspace-left` keeps its
-`<Control><Shift><Alt>Left`. The non-Super set is an explicit list rather than a
-pattern, so no host shortcut is given up that the guest has no use for.
-Originals are saved verbatim to `$XDG_STATE_HOME/domarchy/gnome-key-grabs.json`
-and written back on `restore`; a full before/after diff of all 2617 gsettings
-values round-trips identically.
-
-Locking the host survives the trade. `Super+L` is GNOME's only lock binding and
-Omarchy wants that chord for its workspace layout toggle, so `release` moves host
-lock to **`Ctrl+Alt+L`** rather than dropping it -- the traditional lock chord,
-and one Omarchy binds nothing to. `restore` puts `Super+L` back.
-
-`Ctrl+Alt+Delete` no longer opens the GNOME logout dialog while released; log out
-from the system menu instead.
+While released, host lock moves to `Ctrl+Alt+L`, because `Super+L` is GNOME's
+only lock binding and Omarchy wants that chord. Note the relocation only helps
+in the browser: under a native viewer's keyboard grab no host shortcut fires at
+all while the window is focused, which is the point of the grab.
 
 ### The browser's own ceiling
 
