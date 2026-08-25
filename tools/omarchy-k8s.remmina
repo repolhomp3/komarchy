@@ -1,0 +1,15 @@
+[remmina]
+name=Omarchy VM (k8s)
+group=domarchy
+protocol=VNC
+server=localhost:5901
+scale=1
+aspectscale=1
+viewmode=3
+window_maximize=1
+keyboard_grab=1
+colordepth=32
+quality=9
+disableclipboard=0
+disableserverinput=0
+viewonly=0

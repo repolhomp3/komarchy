@@ -17,6 +17,13 @@ vm:
   # Size of the qcow2 created on first boot. The ISO (~5.8G) shares the same
   # volume, so keep diskSize + 7G at or under persistence.size.
   diskSize: 40G
+  # Guest framebuffer size. Clients that scale — noVNC, and Remmina with
+  # scale=1 — stretch this to fill the window, so it governs sharpness rather
+  # than how large the desktop appears. There is no host GPU here, so Hyprland
+  # composites through llvmpipe on the CPU; 4K costs more than twice the pixels
+  # of 1440p for no visible gain once it has been scaled to a client.
+  xres: 2560
+  yres: 1440
 
 persistence:
   enabled: true

@@ -50,6 +50,10 @@ spec:
               value: {{ .Values.vm.cpus | quote }}
             - name: DISK_SIZE
               value: {{ .Values.vm.diskSize | quote }}
+            - name: XRES
+              value: {{ .Values.vm.xres | quote }}
+            - name: YRES
+              value: {{ .Values.vm.yres | quote }}
             {{- if .Values.audio.enabled }}
             - name: AUDIO
               value: "pa"
